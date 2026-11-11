@@ -259,6 +259,42 @@
             </div>
         </section>
 
+        <!-- Stats & Filter Bar -->
+        <section class="flex flex-wrap items-center justify-between gap-4 bg-darkbg-800/40 p-4 rounded-xl border border-slate-800">
+            <div class="flex items-center gap-6">
+                <div>
+                    <span class="text-xs text-slate-400 block uppercase tracking-wider font-medium">Összes zene</span>
+                    <span id="statTotalTracks" class="text-lg font-bold text-slate-100">0 db</span>
+                </div>
+                <div class="h-8 w-px bg-slate-700"></div>
+                <div>
+                    <span class="text-xs text-slate-400 block uppercase tracking-wider font-medium">Összesen</span>
+                    <span id="statTotalDuration" class="text-lg font-bold text-slate-100">00:00</span>
+                </div>
+                <div class="h-8 w-px bg-slate-700"></div>
+                <div>
+                    <span class="text-xs text-slate-400 block uppercase tracking-wider font-medium">Tárhely használat</span>
+                    <span id="statTotalSize" class="text-lg font-bold text-slate-100">0 MB</span>
+                </div>
+            </div>
+
+            <!-- Sort dropdown & Quick Controls -->
+            <div class="flex items-center gap-3">
+                <label for="sortSelect" class="text-xs text-slate-400 font-medium hidden sm:inline">Rendezés:</label>
+                <select id="sortSelect" class="bg-darkbg-800 border border-slate-700 text-slate-200 text-xs rounded-lg px-3 py-2 focus:outline-none focus:border-brand-500">
+                    <option value="date-desc">Legújabb előre</option>
+                    <option value="date-asc">Legrégebbi előre</option>
+                    <option value="title-asc">Cím szerint (A-Z)</option>
+                    <option value="artist-asc">Előadó szerint (A-Z)</option>
+                    <option value="duration-desc">Hossz szerint (Hosszú-Rövid)</option>
+                </select>
+
+                <button id="deleteAllBtn" title="Összes szám törlése" class="p-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg text-xs transition flex items-center gap-1 border border-red-500/20">
+                    <i class="fa-solid fa-trash-can"></i>
+                    <span class="hidden sm:inline">Összes törlése</span>
+                </button>
+            </div>
+        </section>
 
         <!-- Main Playlist Table / Card Grid -->
         <section class="glass-panel rounded-2xl overflow-hidden shadow-xl flex-1 border border-slate-800">
@@ -411,20 +447,6 @@
                         <label class="block text-xs text-slate-400 mb-1 font-medium">Műfaj</label>
                         <input type="text" id="editGenre" class="w-full bg-darkbg-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-brand-500">
                     </div>
-                </div>
-
-                <div>
-                    <label class="block text-xs text-slate-400 mb-1 font-medium">Borítókép</label>
-                    <div class="flex items-center gap-3">
-                        <img id="editCoverPreview" class="w-16 h-16 rounded-lg object-cover bg-darkbg-900 border border-slate-700 shrink-0" alt="Borítókép előnézet">
-                        <div class="flex flex-col gap-2">
-                            <label class="cursor-pointer px-3 py-1.5 bg-darkbg-800 hover:bg-slate-700 border border-slate-700 rounded-lg text-xs font-medium text-slate-200 transition text-center">Kép kiválasztása
-                                <input type="file" id="editCoverInput" accept="image/*" class="hidden">
-                            </label>
-                            <button type="button" id="removeCoverBtn" class="px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-400 rounded-lg text-xs font-medium transition">Kép törlése</button>
-                        </div>
-                    </div>
-                    <p class="text-[11px] text-slate-500 mt-1">JPG, PNG, WebP — a kép max. 512px-re lesz leméretezve, hogy ne foglaljon sok tárhelyet.</p>
                 </div>
 
                 <div class="pt-2 flex justify-end gap-2">
@@ -585,9 +607,6 @@
                 this.playbackSpeeds = [0.5, 1.0, 1.25, 1.5, 2.0];
                 this.currentSpeedIdx = 1;
                 this.currentObjectURL = null;
-                this.coverURLs = new Map();
-                this.pendingCoverBlob = null;
-                this.pendingCoverRemoved = false;
 
                 // Simple Auth state
                 this.currentUser = null;
@@ -667,9 +686,6 @@
                 this.speedBtn = document.getElementById('speedBtn');
 
                 // Edit Modal
-                this.editCoverPreview = document.getElementById('editCoverPreview');
-                this.editCoverInput = document.getElementById('editCoverInput');
-                this.removeCoverBtn = document.getElementById('removeCoverBtn');
                 this.editModal = document.getElementById('editModal');
                 this.editForm = document.getElementById('editForm');
                 this.closeModalBtn = document.getElementById('closeModalBtn');
@@ -806,8 +822,8 @@
                     this.renderPlaylist();
                 });
 
-                this.sortSelect?.addEventListener('change', () => this.renderPlaylist());
-                this.deleteAllBtn?.addEventListener('click', () => this.confirmDeleteAll());
+                this.sortSelect.addEventListener('change', () => this.renderPlaylist());
+                this.deleteAllBtn.addEventListener('click', () => this.confirmDeleteAll());
 
                 // Audio Events
                 this.playPauseBtn.addEventListener('click', () => this.togglePlayPause());
@@ -930,7 +946,6 @@
                             size: file.size,
                             type: file.type || 'audio/mp3',
                             fileBlob: file,
-                            coverBlob: null,
                             addedAt: Date.now()
                         };
                         resolve(track);
@@ -948,7 +963,6 @@
                             size: file.size,
                             type: file.type || 'audio/mp3',
                             fileBlob: file,
-                            coverBlob: null,
                             addedAt: Date.now()
                         });
                     };
@@ -966,7 +980,7 @@
 
             renderPlaylist() {
                 const searchQuery = this.searchInput.value.toLowerCase();
-                const sortMode = this.sortSelect?.value || 'date-desc';
+                const sortMode = this.sortSelect.value;
 
                 this.filteredTracks = this.tracks.filter(track => {
                     return track.title.toLowerCase().includes(searchQuery) ||
@@ -1020,7 +1034,9 @@
                         </td>
                         <td class="py-3 px-4">
                             <div class="flex items-center gap-3">
-                                ${this.coverURLFor(track) ? `<img src="${this.coverURLFor(track)}" class="w-9 h-9 rounded object-cover border border-slate-700/80 shrink-0" alt="">` : `<div class="w-9 h-9 rounded bg-slate-800 flex items-center justify-center text-slate-500 font-semibold border border-slate-700/80 shrink-0"><i class="fa-solid fa-music"></i></div>`}
+                                <div class="w-9 h-9 rounded bg-slate-800 flex items-center justify-center text-slate-500 font-semibold border border-slate-700/80 shrink-0">
+                                    <i class="fa-solid fa-music"></i>
+                                </div>
                                 <div class="overflow-hidden">
                                     <p class="font-semibold text-slate-100 group-hover:text-brand-500 transition truncate">${this.escapeHTML(track.title)}</p>
                                     <p class="text-xs text-slate-400 truncate">${this.escapeHTML(track.artist)}</p>
@@ -1090,19 +1106,19 @@
             }
 
             updateGlobalStats() {
-                if (this.statTotalTracks) this.statTotalTracks.textContent = `${this.tracks.length} db`;
+                this.statTotalTracks.textContent = `${this.tracks.length} db`;
                 
                 const totalSecs = this.tracks.reduce((acc, t) => acc + (t.duration || 0), 0);
                 const hrs = Math.floor(totalSecs / 3600);
                 const mins = Math.floor((totalSecs % 3600) / 60);
                 const secs = Math.floor(totalSecs % 60);
-                if (this.statTotalDuration) this.statTotalDuration.textContent = hrs > 0 
+                this.statTotalDuration.textContent = hrs > 0 
                     ? `${hrs}ó ${mins}p` 
                     : `${mins}:${secs < 10 ? '0' : ''}${secs}`;
 
                 const totalBytes = this.tracks.reduce((acc, t) => acc + (t.size || 0), 0);
                 const totalMB = (totalBytes / (1024 * 1024)).toFixed(1);
-                if (this.statTotalSize) this.statTotalSize.textContent = `${totalMB} MB`;
+                this.statTotalSize.textContent = `${totalMB} MB`;
             }
 
             // --- Playback Controls ---
@@ -1214,8 +1230,6 @@
             }
 
             updatePlayerUI(track) {
-                const coverUrl = this.coverURLFor(track);
-                if (coverUrl) this.playerCover.src = coverUrl;
                 this.playerTitle.textContent = track.title;
                 this.playerArtist.textContent = track.artist;
                 this.playerBadge.textContent = (track.type || 'AUDIO').split('/')[1] || 'MP3';
@@ -1252,60 +1266,11 @@
                 document.getElementById('editArtist').value = track.artist;
                 document.getElementById('editAlbum').value = track.album || '';
                 document.getElementById('editGenre').value = track.genre || '';
-                this.pendingCoverBlob = null;
-                this.pendingCoverRemoved = false;
-                if (this.editCoverInput) this.editCoverInput.value = '';
-                const coverUrl = this.coverURLFor(track);
-                if (this.editCoverPreview) this.editCoverPreview.src = coverUrl || this.playerCover.src;
-                if (!this._coverListenersBound) {
-                    this._coverListenersBound = true;
-                    this.editCoverInput?.addEventListener('change', async (e) => {
-                        const file = e.target.files?.[0];
-                        if (!file) return;
-                        try {
-                            this.pendingCoverBlob = await this.processCoverFile(file);
-                            this.pendingCoverRemoved = false;
-                            this.editCoverPreview.src = URL.createObjectURL(this.pendingCoverBlob);
-                        } catch (err) { this.showToast('Nem sikerült feldolgozni a képet.', 'error'); }
-                    });
-                    this.removeCoverBtn?.addEventListener('click', () => {
-                        this.pendingCoverBlob = null;
-                        this.pendingCoverRemoved = true;
-                        if (this.editCoverInput) this.editCoverInput.value = '';
-                        if (this.editCoverPreview) this.editCoverPreview.src = this.playerCover.src;
-                    });
-                }
                 this.editModal.classList.remove('hidden');
             }
 
             hideEditModal() {
                 this.editModal.classList.add('hidden');
-            }
-
-            coverURLFor(track) {
-                if (!track?.coverBlob) return null;
-                if (!this.coverURLs.has(track.id)) this.coverURLs.set(track.id, URL.createObjectURL(track.coverBlob));
-                return this.coverURLs.get(track.id);
-            }
-
-            processCoverFile(file) {
-                return new Promise((resolve, reject) => {
-                    const img = new Image();
-                    const url = URL.createObjectURL(file);
-                    img.onload = () => {
-                        URL.revokeObjectURL(url);
-                        const max = 512;
-                        const scale = Math.min(1, max / Math.max(img.width, img.height));
-                        const w = Math.max(1, Math.round(img.width * scale));
-                        const h = Math.max(1, Math.round(img.height * scale));
-                        const canvas = document.createElement('canvas');
-                        canvas.width = w; canvas.height = h;
-                        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-                        canvas.toBlob(b => b ? resolve(b) : reject(new Error('Kép feldolgozási hiba')), 'image/jpeg', 0.85);
-                    };
-                    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Nem olvasható képfájl')); };
-                    img.src = url;
-                });
             }
 
             async saveTrackEdit(e) {
@@ -1318,8 +1283,6 @@
                     track.artist = document.getElementById('editArtist').value.trim();
                     track.album = document.getElementById('editAlbum').value.trim();
                     track.genre = document.getElementById('editGenre').value.trim();
-                    if (this.pendingCoverRemoved) { track.coverBlob = null; this.coverURLs.delete(track.id); }
-                    else if (this.pendingCoverBlob) { this.coverURLs.delete(track.id); track.coverBlob = this.pendingCoverBlob; }
 
                     await this.db.updateTrack(track);
                     this.hideEditModal();

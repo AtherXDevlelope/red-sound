@@ -1,4 +1,4 @@
-const CACHE = 'red-sound-v1';
+const CACHE = 'red-sound-v5';
 const CORE = [
   './',
   './index.html',
@@ -13,6 +13,18 @@ self.addEventListener('activate', e => {
 });
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
+  const url = new URL(e.request.url);
+  // Közös könyvtár (music.json + music/) MINDIG hálózatról, különben az új zenéket nem látná senki
+  if (url.pathname.endsWith('music.json') || url.pathname.includes('/music/')) {
+    e.respondWith(
+      fetch(e.request).then(res => {
+        const copy = res.clone();
+        caches.open(CACHE).then(c => c.put(e.request, copy));
+        return res;
+      }).catch(() => caches.match(e.request))
+    );
+    return;
+  }
   e.respondWith(
     caches.match(e.request).then(hit => hit || fetch(e.request).then(res => {
       const copy = res.clone();
