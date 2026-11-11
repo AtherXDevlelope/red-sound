@@ -1,0 +1,1393 @@
+<!DOCTYPE html>
+<html lang="hu" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CloudHarmonix - Saját Zenei Felhő & Lejátszó</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#ecfdf5',
+                            100: '#d1fae5',
+                            500: '#10b981',
+                            600: '#059669',
+                            700: '#047857',
+                            accent: '#6366f1',
+                            purple: '#8b5cf6'
+                        },
+                        darkbg: {
+                            900: '#0f172a',
+                            800: '#1e293b',
+                            700: '#334155',
+                            850: '#151f32'
+                        }
+                    },
+                    animation: {
+                        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                        'spin-slow': 'spin 12s linear infinite'
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- FontAwesome icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #475569;
+        }
+
+        /* Glassmorphism & custom utility classes */
+        .glass-panel {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .glass-nav {
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        /* Waveform animated equalizer bars */
+        .eq-bar {
+            animation: bounce 1.2s ease-in-out infinite alternate;
+        }
+        .eq-bar:nth-child(1) { animation-delay: 0.1s; }
+        .eq-bar:nth-child(2) { animation-delay: 0.3s; }
+        .eq-bar:nth-child(3) { animation-delay: 0.5s; }
+        .eq-bar:nth-child(4) { animation-delay: 0.2s; }
+
+        @keyframes bounce {
+            0% { height: 4px; }
+            100% { height: 24px; }
+        }
+
+        /* Custom Audio Slider Inputs */
+        input[type=range] {
+            -webkit-appearance: none;
+            background: transparent;
+        }
+        input[type=range]:focus {
+            outline: none;
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 6px;
+            cursor: pointer;
+            border-radius: 9999px;
+            background: #334155;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            height: 14px;
+            width: 14px;
+            border-radius: 50%;
+            background: #10b981;
+            cursor: pointer;
+            -webkit-appearance: none;
+            margin-top: -4px;
+            box-shadow: 0 0 10px rgba(16, 185, 129, 0.5);
+            transition: transform 0.1s ease;
+        }
+        input[type=range]::-webkit-slider-thumb:hover {
+            transform: scale(1.3);
+        }
+
+        .gradient-text {
+            background: linear-gradient(135deg, #10b981 0%, #6366f1 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .dropzone-active {
+            border-color: #10b981 !important;
+            background-color: rgba(16, 185, 129, 0.08) !important;
+        }
+    </style>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#0f172a">
+</head>
+<body class="bg-darkbg-900 text-slate-100 font-sans min-h-screen flex flex-col selection:bg-brand-500 selection:text-white antialiased">
+
+    <!-- Top Navigation Header -->
+    <header class="sticky top-0 z-40 glass-nav px-4 lg:px-8 py-3 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-500 to-brand-accent flex items-center justify-center shadow-lg shadow-brand-500/20">
+                <i class="fa-solid font-bold fa-cloud-arrow-up text-white text-lg"></i>
+            </div>
+            <div>
+                <h1 class="text-xl font-bold tracking-tight flex items-center gap-2">
+                    CloudHarmonix <span class="text-xs px-2 py-0.5 rounded-full bg-brand-500/20 text-brand-500 font-medium">Felhő Zene</span>
+                </h1>
+                <p class="text-xs text-slate-400">Saját zenei tárhely & lejátszó az IndexedDB erejével</p>
+            </div>
+        </div>
+
+        <!-- Global Search & Actions -->
+        <div class="flex items-center gap-3 w-full max-w-xs md:max-w-md ml-4">
+            <div class="relative w-full">
+                <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm"></i>
+                <input type="text" id="searchInput" placeholder="Keresés szám, előadó vagy műfaj szerint..." 
+                    class="w-full pl-9 pr-4 py-2 bg-darkbg-800/80 border border-slate-700/60 rounded-full text-sm text-slate-200 placeholder-slate-400 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-all">
+                <button id="clearSearchBtn" class="hidden absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 text-xs">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+        </div>
+
+        <span id="offlineBadge" class="hidden px-2 py-1 text-[10px] font-semibold rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30">OFFLINE</span>
+        <div class="flex items-center gap-3">
+            <button id="triggerUploadBtn" class="hidden px-4 py-2 bg-brand-500 hover:bg-brand-600 active:scale-95 text-white font-medium text-sm rounded-full transition shadow-md shadow-brand-500/20 flex items-center gap-2">
+                <i class="fa-solid fa-plus"></i>
+                <span class="hidden sm:inline">Zene feltöltés</span>
+            </button>
+
+            <!-- User Auth Profile Section -->
+            <div id="authStatusContainer" class="flex items-center gap-2 border-l border-slate-700/60 pl-3">
+                <!-- Guest View -->
+                <button id="openAuthModalBtn" class="px-3 py-1.5 bg-darkbg-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-full border border-slate-700 transition flex items-center gap-1.5">
+                    <i class="fa-solid fa-user-lock text-brand-500"></i>
+                    <span>Admin Bejelentkezés</span>
+                </button>
+
+                <!-- Logged In User View (Hidden by default) -->
+                <div id="userProfileBadge" class="hidden flex items-center gap-2">
+                    <div class="flex items-center gap-2 bg-darkbg-800 border border-slate-700/80 rounded-full px-3 py-1">
+                        <div class="w-6 h-6 rounded-full bg-gradient-to-tr from-brand-500 to-brand-purple text-white flex items-center justify-center font-bold text-xs uppercase" id="userAvatar">
+                            A
+                        </div>
+                        <span id="userDisplayName" class="text-xs font-medium text-slate-200 max-w-[100px] truncate">Admin</span>
+                        <span class="text-[10px] px-1.5 py-0.2 rounded bg-brand-500/20 text-brand-500 font-semibold">Admin / Producer</span>
+                    </div>
+                    <button id="logoutBtn" title="Kijelentkezés" class="p-2 text-slate-400 hover:text-red-400 text-xs transition">
+                        <i class="fa-solid fa-right-from-bracket"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="flex-1 max-w-7xl w-full mx-auto p-4 md:p-6 lg:p-8 flex flex-col gap-6 mb-32">
+        
+        <!-- Hero & Upload Banner (Collapsible/Interactive) -->
+        <section id="uploadSection" class="hidden glass-panel rounded-2xl p-6 relative overflow-hidden transition-all duration-300 border border-slate-700/50">
+            <div class="absolute -right-10 -bottom-10 w-60 h-60 bg-brand-500/10 rounded-full blur-3xl pointer-events-none"></div>
+            <div class="absolute -left-10 -top-10 w-60 h-60 bg-brand-accent/10 rounded-full blur-3xl pointer-events-none"></div>
+
+            <div class="relative z-10 flex flex-col md:flex-row items-center justify-between gap-6">
+                <div class="space-y-2 text-center md:text-left">
+                    <h2 class="text-2xl md:text-3xl font-extrabold tracking-tight">
+                        Töltsd fel a saját zenéidet a <span class="gradient-text">Felhődbe</span>!
+                    </h2>
+                    <p class="text-slate-300 text-sm max-w-xl">
+                        Támogatott formátumok: <span class="text-brand-500 font-semibold">MP3, WAV, FLAC, OGG, AAC, M4A</span>. 
+                        A vendégek ingyen hallgathatják a zenéket, míg a bejelentkezett előadók új dalokat tölthetnek fel!
+                    </p>
+                </div>
+
+                <!-- Drag and Drop Area -->
+                <div id="dropZone" class="w-full md:w-80 border-2 border-dashed border-slate-600 hover:border-brand-500 rounded-xl p-5 text-center transition cursor-pointer bg-darkbg-850/60 hover:bg-darkbg-800 flex flex-col items-center justify-center group">
+                    <input type="file" id="fileInput" accept="audio/*" multiple class="hidden">
+                    <div class="w-12 h-12 rounded-full bg-slate-700/50 group-hover:bg-brand-500/20 text-brand-500 flex items-center justify-center mb-2 transition">
+                        <i class="fa-solid fa-cloud-arrow-up text-xl"></i>
+                    </div>
+                    <p class="text-sm font-semibold text-slate-200">Húzd ide a fájlokat</p>
+                    <p class="text-xs text-slate-400 mt-1">vagy <span class="text-brand-500 underline">tallózd be</span> a gépedről</p>
+                </div>
+            </div>
+            
+            <!-- Upload Notification Guard Banner for Guests -->
+            <div id="guestNoticeBanner" class="hidden mt-4 p-3 bg-brand-500/10 border border-brand-500/30 rounded-xl flex items-center justify-between text-xs text-brand-500">
+                <span class="flex items-center gap-2">
+                    <i class="fa-solid fa-circle-info"></i>
+                    <span>Vendég mód: Zenék feltöltéséhez és szerkesztéséhez jelentkezz be Admin fiókkal!</span>
+                </span>
+                <button id="guestBannerAuthBtn" class="underline font-bold hover:text-white">Admin Bejelentkezés</button>
+            </div>
+
+            <!-- Progress indicator bar for uploads -->
+            <div id="uploadProgressContainer" class="hidden mt-4 pt-4 border-t border-slate-700/50">
+                <div class="flex justify-between text-xs text-slate-300 mb-1">
+                    <span id="uploadProgressText">Fájlok feldolgozása...</span>
+                    <span id="uploadProgressPercent">0%</span>
+                </div>
+                <div class="w-full bg-slate-700 rounded-full h-2 overflow-hidden">
+                    <div id="uploadProgressBar" class="bg-gradient-to-r from-brand-500 to-brand-accent h-2 rounded-full transition-all duration-200" style="width: 0%"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Stats & Filter Bar -->
+        <section class="flex flex-wrap items-center justify-between gap-4 bg-darkbg-800/40 p-4 rounded-xl border border-slate-800">
+            <div class="flex items-center gap-6">
+                <div>
+                    <span class="text-xs text-slate-400 block uppercase tracking-wider font-medium">Összes zene</span>
+                    <span id="statTotalTracks" class="text-lg font-bold text-slate-100">0 db</span>
+                </div>
+                <div class="h-8 w-px bg-slate-700"></div>
+                <div>
+                    <span class="text-xs text-slate-400 block uppercase tracking-wider font-medium">Összesen</span>
+                    <span id="statTotalDuration" class="text-lg font-bold text-slate-100">00:00</span>
+                </div>
+                <div class="h-8 w-px bg-slate-700"></div>
+                <div>
+                    <span class="text-xs text-slate-400 block uppercase tracking-wider font-medium">Tárhely használat</span>
+                    <span id="statTotalSize" class="text-lg font-bold text-slate-100">0 MB</span>
+                </div>
+            </div>
+
+            <!-- Sort dropdown & Quick Controls -->
+            <div class="flex items-center gap-3">
+                <label for="sortSelect" class="text-xs text-slate-400 font-medium hidden sm:inline">Rendezés:</label>
+                <select id="sortSelect" class="bg-darkbg-800 border border-slate-700 text-slate-200 text-xs rounded-lg px-3 py-2 focus:outline-none focus:border-brand-500">
+                    <option value="date-desc">Legújabb előre</option>
+                    <option value="date-asc">Legrégebbi előre</option>
+                    <option value="title-asc">Cím szerint (A-Z)</option>
+                    <option value="artist-asc">Előadó szerint (A-Z)</option>
+                    <option value="duration-desc">Hossz szerint (Hosszú-Rövid)</option>
+                </select>
+
+                <button id="deleteAllBtn" title="Összes szám törlése" class="p-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg text-xs transition flex items-center gap-1 border border-red-500/20">
+                    <i class="fa-solid fa-trash-can"></i>
+                    <span class="hidden sm:inline">Összes törlése</span>
+                </button>
+            </div>
+        </section>
+
+        <!-- Main Playlist Table / Card Grid -->
+        <section class="glass-panel rounded-2xl overflow-hidden shadow-xl flex-1 border border-slate-800">
+            <div class="px-6 py-4 border-b border-slate-800 flex items-center justify-between">
+                <h3 class="font-bold text-lg text-slate-200 flex items-center gap-2">
+                    <i class="fa-solid fa-list-ul text-brand-500"></i>
+                    <span>Zelalista & Felhő Könyvtár</span>
+                </h3>
+                <span id="playlistStatus" class="text-xs text-slate-400">Betöltés...</span>
+            </div>
+
+            <!-- Empty State View -->
+            <div id="emptyState" class="hidden flex flex-col items-center justify-center p-12 text-center space-y-4">
+                <div class="w-20 h-20 rounded-full bg-slate-800/80 flex items-center justify-center text-slate-500 text-3xl">
+                    <i class="fa-solid fa-music"></i>
+                </div>
+                <div class="max-w-md">
+                    <h4 class="text-lg font-bold text-slate-200">Még nincsenek feltöltött dalaid</h4>
+                    <p class="text-slate-400 text-sm mt-1">Tölts fel hangfájlokat a felső gombra kattintva vagy húzd be őket a feltöltési mezőbe a zenehallgatáshoz!</p>
+                </div>
+                <button id="emptyUploadBtn" class="mt-2 px-5 py-2.5 bg-brand-500 hover:bg-brand-600 text-white rounded-full font-medium text-sm transition shadow-lg shadow-brand-500/20">
+                    Fájlok tallózása
+                </button>
+            </div>
+
+            <!-- Tracks Table -->
+            <div id="trackListContainer" class="overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="text-xs text-slate-400 uppercase border-b border-slate-800/80 bg-darkbg-850/40">
+                            <th class="py-3 px-4 w-12 text-center">#</th>
+                            <th class="py-3 px-4">Cím / Előadó</th>
+                            <th class="py-3 px-4 hidden md:table-cell">Műfaj / Album</th>
+                            <th class="py-3 px-4 hidden lg:table-cell">Feltöltve</th>
+                            <th class="py-3 px-4 text-right">Időtartam</th>
+                            <th class="py-3 px-4 text-center w-28">Műveletek</th>
+                        </tr>
+                    </thead>
+                    <tbody id="trackList" class="divide-y divide-slate-800/60 text-sm">
+                        <!-- Dynamic track rows injected here -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Bottom Audio Player Dock -->
+    <footer id="audioPlayerDock" class="fixed bottom-0 left-0 right-0 z-50 glass-nav border-t border-slate-800 shadow-2xl px-4 py-3">
+        <div class="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-3 md:gap-6">
+            
+            <!-- Track Meta Info (Left) -->
+            <div class="flex items-center gap-3 w-full md:w-1/4">
+                <div class="relative group">
+                    <img id="playerCover" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%231e293b'/%3E%3Cpath d='M40 30v40l30-20z' fill='%23475569'/%3E%3C/svg%3E" 
+                         alt="Album Cover" class="w-14 h-14 rounded-lg object-cover bg-slate-800 border border-slate-700 shadow-md">
+                    <!-- Animated Equalizer Overlay when playing -->
+                    <div id="playerEqOverlay" class="hidden absolute inset-0 bg-black/50 rounded-lg flex items-center justify-center gap-1">
+                        <div class="eq-bar w-1 bg-brand-500 rounded-full"></div>
+                        <div class="eq-bar w-1 bg-brand-500 rounded-full"></div>
+                        <div class="eq-bar w-1 bg-brand-500 rounded-full"></div>
+                    </div>
+                </div>
+                <div class="overflow-hidden">
+                    <h4 id="playerTitle" class="font-semibold text-slate-100 text-sm truncate">Nincs kiválasztott szám</h4>
+                    <p id="playerArtist" class="text-xs text-slate-400 truncate">Válassz egy dalt a lejátszáshoz</p>
+                    <div class="flex items-center gap-2 mt-0.5">
+                        <span id="playerBadge" class="text-[10px] px-1.5 py-0.2 rounded bg-slate-800 text-slate-400 border border-slate-700 uppercase font-mono">IDLE</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Player Controls & Timeline (Center) -->
+            <div class="flex flex-col items-center gap-1.5 w-full md:w-2/4">
+                <!-- Control Buttons -->
+                <div class="flex items-center gap-4">
+                    <button id="shuffleBtn" class="text-slate-400 hover:text-white transition text-xs p-1" title="Véletlenszerű lejátszás">
+                        <i class="fa-solid fa-shuffle"></i>
+                    </button>
+                    <button id="prevBtn" class="text-slate-300 hover:text-white transition text-base p-1" title="Előző szám">
+                        <i class="fa-solid fa-backward-step"></i>
+                    </button>
+                    <button id="playPauseBtn" class="w-10 h-10 rounded-full bg-brand-500 hover:bg-brand-600 active:scale-95 text-white flex items-center justify-center transition shadow-lg shadow-brand-500/30">
+                        <i id="playIcon" class="fa-solid fa-play ml-0.5 text-base"></i>
+                    </button>
+                    <button id="nextBtn" class="text-slate-300 hover:text-white transition text-base p-1" title="Következő szám">
+                        <i class="fa-solid fa-forward-step"></i>
+                    </button>
+                    <button id="loopBtn" class="text-slate-400 hover:text-white transition text-xs p-1" title="Ismétlés">
+                        <i class="fa-solid fa-repeat"></i>
+                    </button>
+                </div>
+
+                <!-- Progress Bar & Timestamps -->
+                <div class="flex items-center gap-2 w-full max-w-lg">
+                    <span id="currentTime" class="text-xs text-slate-400 font-mono w-10 text-right">0:00</span>
+                    <div class="relative flex-1 flex items-center">
+                        <input type="range" id="progressBar" min="0" max="100" value="0" step="0.1" class="w-full">
+                    </div>
+                    <span id="totalDuration" class="text-xs text-slate-400 font-mono w-10">0:00</span>
+                </div>
+            </div>
+
+            <!-- Volume & Extra Tools (Right) -->
+            <div class="flex items-center justify-end gap-3 w-full md:w-1/4">
+                <!-- Speed selector -->
+                <button id="speedBtn" class="text-xs font-mono px-2 py-1 bg-darkbg-800 hover:bg-slate-700 text-slate-300 rounded border border-slate-700 transition" title="Lejátszási sebesség">
+                    1.0x
+                </button>
+
+                <!-- Volume Controls -->
+                <div class="flex items-center gap-2">
+                    <button id="muteBtn" class="text-slate-400 hover:text-white transition text-sm">
+                        <i id="volumeIcon" class="fa-solid fa-volume-high"></i>
+                    </button>
+                    <input type="range" id="volumeSlider" min="0" max="1" step="0.01" value="0.8" class="w-20 md:w-24">
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Edit Track Metadata Modal -->
+    <div id="editModal" class="hidden fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="glass-panel w-full max-w-md rounded-2xl p-6 border border-slate-700 shadow-2xl relative animate-fade-in">
+            <button id="closeModalBtn" class="absolute top-4 right-4 text-slate-400 hover:text-slate-200">
+                <i class="fa-solid fa-xmark text-lg"></i>
+            </button>
+            
+            <h3 class="text-lg font-bold text-slate-100 mb-4 flex items-center gap-2">
+                <i class="fa-solid fa-pen-to-square text-brand-500"></i>
+                <span>Zene adataik szerkesztése</span>
+            </h3>
+
+            <form id="editForm" class="space-y-4">
+                <input type="hidden" id="editTrackId">
+                <div>
+                    <label class="block text-xs text-slate-400 mb-1 font-medium">Zene címe</label>
+                    <input type="text" id="editTitle" required class="w-full bg-darkbg-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-brand-500">
+                </div>
+                <div>
+                    <label class="block text-xs text-slate-400 mb-1 font-medium">Előadó</label>
+                    <input type="text" id="editArtist" class="w-full bg-darkbg-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-brand-500">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs text-slate-400 mb-1 font-medium">Album</label>
+                        <input type="text" id="editAlbum" class="w-full bg-darkbg-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-brand-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-slate-400 mb-1 font-medium">Műfaj</label>
+                        <input type="text" id="editGenre" class="w-full bg-darkbg-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-brand-500">
+                    </div>
+                </div>
+
+                <div class="pt-2 flex justify-end gap-2">
+                    <button type="button" id="cancelEditBtn" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-sm font-medium transition">
+                        Mégse
+                    </button>
+                    <button type="submit" class="px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white rounded-lg text-sm font-medium transition shadow-lg shadow-brand-500/20">
+                        Mentés
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Admin Login Modal -->
+    <div id="authModal" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+        <div class="glass-panel w-full max-w-md rounded-2xl p-6 border border-slate-700 shadow-2xl relative">
+            <button id="closeAuthModalBtn" class="absolute top-4 right-4 text-slate-400 hover:text-slate-200">
+                <i class="fa-solid fa-xmark text-lg"></i>
+            </button>
+
+            <div class="mb-6 text-center">
+                <div class="w-12 h-12 rounded-full bg-brand-500/20 text-brand-500 flex items-center justify-center mx-auto mb-2">
+                    <i class="fa-solid fa-user-shield text-xl"></i>
+                </div>
+                <h3 class="text-xl font-bold text-slate-100">Admin Bejelentkezés</h3>
+                <p class="text-xs text-slate-400 mt-1">Lépj be a feltöltési jogok feloldásához</p>
+            </div>
+
+            <!-- Simple Admin Login Form -->
+            <form id="loginForm" class="space-y-4">
+                <div>
+                    <label class="block text-xs text-slate-400 mb-1 font-medium">Felhasználónév</label>
+                    <input type="text" id="loginUsername" required placeholder="Admin" class="w-full bg-darkbg-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-brand-500">
+                </div>
+                <div>
+                    <label class="block text-xs text-slate-400 mb-1 font-medium">Jelszó</label>
+                    <input type="password" id="loginPassword" required placeholder="••••••••" class="w-full bg-darkbg-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-brand-500">
+                </div>
+                <button type="submit" class="w-full py-2.5 bg-brand-500 hover:bg-brand-600 text-white rounded-lg text-sm font-semibold transition shadow-lg shadow-brand-500/20">
+                    Bejelentkezés Admin-ként
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Toast Notification Overlay -->
+    <div id="toastContainer" class="fixed top-20 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+    <!-- Application Script logic -->
+    <script>
+        /**
+         * CloudHarmonix - Audio Cloud Architecture with Fixed Credentials
+         */
+
+        // IndexedDB Manager
+        class AudioDatabase {
+            constructor() {
+                this.dbName = 'CloudHarmonixDB';
+                this.dbVersion = 1;
+                this.db = null;
+            }
+
+            async init() {
+                return new Promise((resolve, reject) => {
+                    const request = indexedDB.open(this.dbName, this.dbVersion);
+                    request.onerror = (e) => reject('Database error: ' + e.target.errorCode);
+                    request.onsuccess = (e) => {
+                        this.db = e.target.result;
+                        resolve(this.db);
+                    };
+                    request.onupgradeneeded = (e) => {
+                        const db = e.target.result;
+                        if (!db.objectStoreNames.contains('tracks')) {
+                            const store = db.createObjectStore('tracks', { keyPath: 'id' });
+                            store.createIndex('title', 'title', { unique: false });
+                            store.createIndex('artist', 'artist', { unique: false });
+                            store.createIndex('addedAt', 'addedAt', { unique: false });
+                        }
+                    };
+                });
+            }
+
+            async addTrack(trackData) {
+                return new Promise((resolve, reject) => {
+                    const tx = this.db.transaction(['tracks'], 'readwrite');
+                    const store = tx.objectStore('tracks');
+                    const req = store.add(trackData);
+                    req.onsuccess = () => resolve(req.result);
+                    req.onerror = () => reject(req.error);
+                });
+            }
+
+            async getAllTracks() {
+                return new Promise((resolve, reject) => {
+                    const tx = this.db.transaction(['tracks'], 'readonly');
+                    const store = tx.objectStore('tracks');
+                    const req = store.getAll();
+                    req.onsuccess = () => resolve(req.result);
+                    req.onerror = () => reject(req.error);
+                });
+            }
+
+            async getTrack(id) {
+                return new Promise((resolve, reject) => {
+                    const tx = this.db.transaction(['tracks'], 'readonly');
+                    const store = tx.objectStore('tracks');
+                    const req = store.get(id);
+                    req.onsuccess = () => resolve(req.result);
+                    req.onerror = () => reject(req.error);
+                });
+            }
+
+            async updateTrack(trackData) {
+                return new Promise((resolve, reject) => {
+                    const tx = this.db.transaction(['tracks'], 'readwrite');
+                    const store = tx.objectStore('tracks');
+                    const req = store.put(trackData);
+                    req.onsuccess = () => resolve(req.result);
+                    req.onerror = () => reject(req.error);
+                });
+            }
+
+            async deleteTrack(id) {
+                return new Promise((resolve, reject) => {
+                    const tx = this.db.transaction(['tracks'], 'readwrite');
+                    const store = tx.objectStore('tracks');
+                    const req = store.delete(id);
+                    req.onsuccess = () => resolve();
+                    req.onerror = () => reject(req.error);
+                });
+            }
+
+            async clearAllTracks() {
+                return new Promise((resolve, reject) => {
+                    const tx = this.db.transaction(['tracks'], 'readwrite');
+                    const store = tx.objectStore('tracks');
+                    const req = store.clear();
+                    req.onsuccess = () => resolve();
+                    req.onerror = () => reject(req.error);
+                });
+            }
+        }
+
+        // Main Application Controller
+        class App {
+            constructor() {
+                this.db = new AudioDatabase();
+                this.audio = new Audio();
+                
+                // State management
+                this.tracks = [];
+                this.filteredTracks = [];
+                this.currentTrackIndex = -1;
+                this.isPlaying = false;
+                this.isShuffle = false;
+                this.isLoop = false;
+                this.playbackSpeeds = [0.5, 1.0, 1.25, 1.5, 2.0];
+                this.currentSpeedIdx = 1;
+                this.currentObjectURL = null;
+
+                // Simple Auth state
+                this.currentUser = null;
+
+                // Bind DOM Elements
+                this.initDOMElements();
+            }
+
+            async init() {
+                // Offline: oldal + CDN fájlok cache-elése, zenék már IndexedDB-ben vannak
+                if ('serviceWorker' in navigator) {
+                    navigator.serviceWorker.register('sw.js').catch(err => console.warn('SW hiba:', err));
+                }
+                const badge = document.getElementById('offlineBadge');
+                const updateOnline = () => badge?.classList.toggle('hidden', navigator.onLine);
+                window.addEventListener('online', updateOnline);
+                window.addEventListener('offline', updateOnline);
+                updateOnline();
+                try {
+                    await this.db.init();
+                    this.attachEventListeners();
+                    this.checkSavedAuth();
+                    await this.loadTracksFromDB();
+                } catch (err) {
+                    console.error('Initialization error:', err);
+                    this.showToast('Hiba történt az adatbázis megnyitásakor.', 'error');
+                }
+            }
+
+            initDOMElements() {
+                // Upload & Files
+                this.dropZone = document.getElementById('dropZone');
+                this.fileInput = document.getElementById('fileInput');
+                this.triggerUploadBtn = document.getElementById('triggerUploadBtn');
+                this.emptyUploadBtn = document.getElementById('emptyUploadBtn');
+                this.uploadProgressContainer = document.getElementById('uploadProgressContainer');
+                this.uploadProgressBar = document.getElementById('uploadProgressBar');
+                this.uploadProgressText = document.getElementById('uploadProgressText');
+                this.uploadProgressPercent = document.getElementById('uploadProgressPercent');
+                this.uploadSection = document.getElementById('uploadSection');
+                this.guestNoticeBanner = document.getElementById('guestNoticeBanner');
+                this.guestBannerAuthBtn = document.getElementById('guestBannerAuthBtn');
+
+                // Search & Filter
+                this.searchInput = document.getElementById('searchInput');
+                this.clearSearchBtn = document.getElementById('clearSearchBtn');
+                this.sortSelect = document.getElementById('sortSelect');
+                this.deleteAllBtn = document.getElementById('deleteAllBtn');
+
+                // Track Display
+                this.trackList = document.getElementById('trackList');
+                this.emptyState = document.getElementById('emptyState');
+                this.trackListContainer = document.getElementById('trackListContainer');
+                this.playlistStatus = document.getElementById('playlistStatus');
+
+                // Stats
+                this.statTotalTracks = document.getElementById('statTotalTracks');
+                this.statTotalDuration = document.getElementById('statTotalDuration');
+                this.statTotalSize = document.getElementById('statTotalSize');
+
+                // Audio Player Controls
+                this.playerCover = document.getElementById('playerCover');
+                this.playerEqOverlay = document.getElementById('playerEqOverlay');
+                this.playerTitle = document.getElementById('playerTitle');
+                this.playerArtist = document.getElementById('playerArtist');
+                this.playerBadge = document.getElementById('playerBadge');
+                
+                this.playPauseBtn = document.getElementById('playPauseBtn');
+                this.playIcon = document.getElementById('playIcon');
+                this.prevBtn = document.getElementById('prevBtn');
+                this.nextBtn = document.getElementById('nextBtn');
+                this.shuffleBtn = document.getElementById('shuffleBtn');
+                this.loopBtn = document.getElementById('loopBtn');
+                
+                this.progressBar = document.getElementById('progressBar');
+                this.currentTimeEl = document.getElementById('currentTime');
+                this.totalDurationEl = document.getElementById('totalDuration');
+                
+                this.volumeSlider = document.getElementById('volumeSlider');
+                this.muteBtn = document.getElementById('muteBtn');
+                this.volumeIcon = document.getElementById('volumeIcon');
+                this.speedBtn = document.getElementById('speedBtn');
+
+                // Edit Modal
+                this.editModal = document.getElementById('editModal');
+                this.editForm = document.getElementById('editForm');
+                this.closeModalBtn = document.getElementById('closeModalBtn');
+                this.cancelEditBtn = document.getElementById('cancelEditBtn');
+
+                // Auth Elements
+                this.openAuthModalBtn = document.getElementById('openAuthModalBtn');
+                this.authModal = document.getElementById('authModal');
+                this.closeAuthModalBtn = document.getElementById('closeAuthModalBtn');
+                this.loginForm = document.getElementById('loginForm');
+                this.userProfileBadge = document.getElementById('userProfileBadge');
+                this.userAvatar = document.getElementById('userAvatar');
+                this.userDisplayName = document.getElementById('userDisplayName');
+                this.logoutBtn = document.getElementById('logoutBtn');
+            }
+
+            // --- Authentication Setup ---
+            checkSavedAuth() {
+                const savedUser = sessionStorage.getItem('cloudharmonix_user');
+                if (savedUser) {
+                    this.currentUser = JSON.parse(savedUser);
+                    this.updateAuthUI(true);
+                } else {
+                    this.updateAuthUI(false);
+                }
+            }
+
+            updateAuthUI(isLoggedIn) {
+                if (isLoggedIn && this.currentUser) {
+                    this.openAuthModalBtn.classList.add('hidden');
+                    this.userProfileBadge.classList.remove('hidden');
+                    this.guestNoticeBanner.classList.add('hidden');
+                    
+                    const name = this.currentUser.username;
+                    this.userDisplayName.textContent = name;
+                    this.userAvatar.textContent = name.charAt(0).toUpperCase();
+                } else {
+                    this.openAuthModalBtn.classList.remove('hidden');
+                    this.userProfileBadge.classList.add('hidden');
+                    this.guestNoticeBanner.classList.remove('hidden');
+                }
+                // Feltöltő felületek csak bejelentkezett Admin-nak
+                this.uploadSection.classList.toggle('hidden', !isLoggedIn);
+                this.triggerUploadBtn.classList.toggle('hidden', !isLoggedIn);
+            }
+
+            attachEventListeners() {
+                // Upload permission guard
+                const triggerUpload = () => {
+                    if (!this.currentUser) {
+                        this.showAuthModal();
+                        this.showToast('Zene feltöltéséhez be kell jelentkezned Admin-ként!', 'info');
+                        return;
+                    }
+                    this.fileInput.click();
+                };
+
+                this.triggerUploadBtn.addEventListener('click', triggerUpload);
+                this.emptyUploadBtn.addEventListener('click', triggerUpload);
+                this.dropZone.addEventListener('click', triggerUpload);
+                this.guestBannerAuthBtn.addEventListener('click', () => this.showAuthModal());
+
+                this.fileInput.addEventListener('change', (e) => this.handleFilesUpload(e.target.files));
+
+                // Auth Modal triggers
+                this.openAuthModalBtn.addEventListener('click', () => this.showAuthModal());
+                this.closeAuthModalBtn.addEventListener('click', () => this.hideAuthModal());
+
+                // Login Submission (Fixed Admin / MrRedstone)
+                this.loginForm.addEventListener('submit', (e) => {
+                    e.preventDefault();
+                    const usernameInput = document.getElementById('loginUsername').value.trim();
+                    const passwordInput = document.getElementById('loginPassword').value.trim();
+
+                    if (usernameInput === 'Admin' && passwordInput === 'MrRedstone') {
+                        this.currentUser = { username: 'Admin', role: 'admin' };
+                        sessionStorage.setItem('cloudharmonix_user', JSON.stringify(this.currentUser));
+                        this.updateAuthUI(true);
+                        this.hideAuthModal();
+                        this.showToast('Sikeres bejelentkezés Admin fiókkal!', 'success');
+                        this.renderPlaylist();
+                    } else {
+                        this.showToast('Érvénytelen felhasználónév vagy jelszó!', 'error');
+                    }
+                });
+
+                // Logout
+                this.logoutBtn.addEventListener('click', () => {
+                    this.currentUser = null;
+                    sessionStorage.removeItem('cloudharmonix_user');
+                    this.updateAuthUI(false);
+                    this.showToast('Sikeresen kijelentkeztél!', 'info');
+                    this.renderPlaylist();
+                });
+
+                // Drag and drop setup
+                ['dragenter', 'dragover'].forEach(eventName => {
+                    this.dropZone.addEventListener(eventName, (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        this.dropZone.classList.add('dropzone-active');
+                    }, false);
+                });
+
+                ['dragleave', 'drop'].forEach(eventName => {
+                    this.dropZone.addEventListener(eventName, (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        this.dropZone.classList.remove('dropzone-active');
+                    }, false);
+                });
+
+                this.dropZone.addEventListener('drop', (e) => {
+                    if (!this.currentUser) {
+                        this.showAuthModal();
+                        this.showToast('Zene feltöltéséhez be kell jelentkezned Admin-ként!', 'info');
+                        return;
+                    }
+                    const dt = e.dataTransfer;
+                    const files = dt.files;
+                    this.handleFilesUpload(files);
+                });
+
+                // Search & Sort
+                this.searchInput.addEventListener('input', () => {
+                    const query = this.searchInput.value.trim();
+                    this.clearSearchBtn.classList.toggle('hidden', query === '');
+                    this.renderPlaylist();
+                });
+
+                this.clearSearchBtn.addEventListener('click', () => {
+                    this.searchInput.value = '';
+                    this.clearSearchBtn.classList.add('hidden');
+                    this.renderPlaylist();
+                });
+
+                this.sortSelect.addEventListener('change', () => this.renderPlaylist());
+                this.deleteAllBtn.addEventListener('click', () => this.confirmDeleteAll());
+
+                // Audio Events
+                this.playPauseBtn.addEventListener('click', () => this.togglePlayPause());
+                this.prevBtn.addEventListener('click', () => this.playPrevious());
+                this.nextBtn.addEventListener('click', () => this.playNext());
+                this.shuffleBtn.addEventListener('click', () => this.toggleShuffle());
+                this.loopBtn.addEventListener('click', () => this.toggleLoop());
+                
+                this.audio.addEventListener('timeupdate', () => this.onTimeUpdate());
+                this.audio.addEventListener('loadedmetadata', () => this.onMetadataLoaded());
+                this.audio.addEventListener('ended', () => this.onTrackEnded());
+
+                this.progressBar.addEventListener('input', (e) => {
+                    if (this.audio.duration) {
+                        const targetTime = (e.target.value / 100) * this.audio.duration;
+                        this.audio.currentTime = targetTime;
+                    }
+                });
+
+                this.volumeSlider.addEventListener('input', (e) => {
+                    this.audio.volume = e.target.value;
+                    this.updateVolumeUI();
+                });
+
+                this.muteBtn.addEventListener('click', () => {
+                    this.audio.muted = !this.audio.muted;
+                    this.updateVolumeUI();
+                });
+
+                this.speedBtn.addEventListener('click', () => {
+                    this.currentSpeedIdx = (this.currentSpeedIdx + 1) % this.playbackSpeeds.length;
+                    const speed = this.playbackSpeeds[this.currentSpeedIdx];
+                    this.audio.playbackRate = speed;
+                    this.speedBtn.textContent = `${speed}x`;
+                });
+
+                this.closeModalBtn.addEventListener('click', () => this.hideEditModal());
+                this.cancelEditBtn.addEventListener('click', () => this.hideEditModal());
+                this.editForm.addEventListener('submit', (e) => this.saveTrackEdit(e));
+            }
+
+            showAuthModal() {
+                this.authModal.classList.remove('hidden');
+            }
+
+            hideAuthModal() {
+                this.authModal.classList.add('hidden');
+            }
+
+            // --- Track Upload Logic ---
+            async handleFilesUpload(files) {
+                if (!this.currentUser) {
+                    this.showAuthModal();
+                    this.showToast('Zene feltöltéséhez be kell jelentkezned Admin-ként!', 'info');
+                    return;
+                }
+
+                if (!files || files.length === 0) return;
+                const audioFiles = Array.from(files).filter(file => file.type.startsWith('audio/') || /\.(mp3|wav|ogg|flac|m4a|aac)$/i.test(file.name));
+
+                if (audioFiles.length === 0) {
+                    this.showToast('Kérjük, csak érvényes audio fájlokat válassz ki!', 'error');
+                    return;
+                }
+
+                this.uploadProgressContainer.classList.remove('hidden');
+                let completed = 0;
+
+                for (const file of audioFiles) {
+                    try {
+                        const trackMeta = await this.extractAudioMetadata(file);
+                        trackMeta.uploader = 'Admin';
+                        
+                        await this.db.addTrack(trackMeta);
+                        completed++;
+                        const percent = Math.round((completed / audioFiles.length) * 100);
+                        this.uploadProgressBar.style.width = `${percent}%`;
+                        this.uploadProgressPercent.textContent = `${percent}%`;
+                        this.uploadProgressText.textContent = `Fájlok feldolgozása (${completed}/${audioFiles.length})...`;
+                    } catch (err) {
+                        console.error('File parsing error:', file.name, err);
+                        this.showToast(`Hiba a(z) ${file.name} feldolgozásakor.`, 'error');
+                    }
+                }
+
+                setTimeout(() => {
+                    this.uploadProgressContainer.classList.add('hidden');
+                    this.uploadProgressBar.style.width = '0%';
+                }, 1000);
+
+                this.showToast(`${completed} új zene sikeresen feltöltve a felhődbe!`, 'success');
+                await this.loadTracksFromDB();
+            }
+
+            extractAudioMetadata(file) {
+                return new Promise((resolve) => {
+                    const tempAudio = new Audio();
+                    const objectUrl = URL.createObjectURL(file);
+
+                    let title = file.name.replace(/\.[^/.]+$/, "");
+                    let artist = 'Admin';
+                    
+                    if (title.includes(' - ')) {
+                        const parts = title.split(' - ');
+                        artist = parts[0].trim();
+                        title = parts.slice(1).join(' - ').trim();
+                    }
+
+                    tempAudio.onloadedmetadata = () => {
+                        const duration = tempAudio.duration || 0;
+                        URL.revokeObjectURL(objectUrl);
+
+                        const track = {
+                            id: 'track_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
+                            title: title,
+                            artist: artist,
+                            album: 'Saját Felhő Album',
+                            genre: 'Egyéb',
+                            duration: duration,
+                            size: file.size,
+                            type: file.type || 'audio/mp3',
+                            fileBlob: file,
+                            addedAt: Date.now()
+                        };
+                        resolve(track);
+                    };
+
+                    tempAudio.onerror = () => {
+                        URL.revokeObjectURL(objectUrl);
+                        resolve({
+                            id: 'track_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
+                            title: file.name,
+                            artist: artist,
+                            album: 'Ismeretlen Album',
+                            genre: 'Egyéb',
+                            duration: 0,
+                            size: file.size,
+                            type: file.type || 'audio/mp3',
+                            fileBlob: file,
+                            addedAt: Date.now()
+                        });
+                    };
+
+                    tempAudio.src = objectUrl;
+                });
+            }
+
+            // --- Database Sync & UI Rendering ---
+            async loadTracksFromDB() {
+                this.tracks = await this.db.getAllTracks();
+                this.renderPlaylist();
+                this.updateGlobalStats();
+            }
+
+            renderPlaylist() {
+                const searchQuery = this.searchInput.value.toLowerCase();
+                const sortMode = this.sortSelect.value;
+
+                this.filteredTracks = this.tracks.filter(track => {
+                    return track.title.toLowerCase().includes(searchQuery) ||
+                           track.artist.toLowerCase().includes(searchQuery) ||
+                           (track.genre && track.genre.toLowerCase().includes(searchQuery)) ||
+                           (track.album && track.album.toLowerCase().includes(searchQuery));
+                });
+
+                this.filteredTracks.sort((a, b) => {
+                    if (sortMode === 'date-desc') return b.addedAt - a.addedAt;
+                    if (sortMode === 'date-asc') return a.addedAt - b.addedAt;
+                    if (sortMode === 'title-asc') return a.title.localeCompare(b.title);
+                    if (sortMode === 'artist-asc') return a.artist.localeCompare(b.artist);
+                    if (sortMode === 'duration-desc') return b.duration - a.duration;
+                    return 0;
+                });
+
+                if (this.tracks.length === 0) {
+                    this.emptyState.classList.remove('hidden');
+                    this.trackListContainer.classList.add('hidden');
+                    this.playlistStatus.textContent = 'Üres könyvtár';
+                    return;
+                } else {
+                    this.emptyState.classList.add('hidden');
+                    this.trackListContainer.classList.remove('hidden');
+                    this.playlistStatus.textContent = `${this.filteredTracks.length} / ${this.tracks.length} zene megjelenítve`;
+                }
+
+                this.trackList.innerHTML = '';
+                this.filteredTracks.forEach((track, index) => {
+                    const isCurrent = this.currentTrackIndex !== -1 && 
+                                     this.filteredTracks[this.currentTrackIndex]?.id === track.id;
+                    const canEdit = !!this.currentUser; // Admin users have full edit rights
+
+                    const tr = document.createElement('tr');
+                    tr.className = `group hover:bg-slate-800/60 transition ${isCurrent ? 'bg-brand-500/10 text-brand-500 border-l-4 border-brand-500' : 'text-slate-300'}`;
+                    
+                    tr.innerHTML = `
+                        <td class="py-3 px-4 text-center font-mono text-xs">
+                            ${isCurrent && this.isPlaying ? 
+                                `<div class="flex items-center justify-center gap-0.5 h-4">
+                                    <div class="w-1 bg-brand-500 h-full animate-bounce"></div>
+                                    <div class="w-1 bg-brand-500 h-2 animate-bounce" style="animation-delay:0.2s"></div>
+                                    <div class="w-1 bg-brand-500 h-3 animate-bounce" style="animation-delay:0.4s"></div>
+                                 </div>` : 
+                                `<span class="group-hover:hidden">${index + 1}</span>
+                                 <button class="hidden group-hover:inline-block text-brand-500 play-btn-row">
+                                    <i class="fa-solid fa-play"></i>
+                                 </button>`
+                            }
+                        </td>
+                        <td class="py-3 px-4">
+                            <div class="flex items-center gap-3">
+                                <div class="w-9 h-9 rounded bg-slate-800 flex items-center justify-center text-slate-500 font-semibold border border-slate-700/80 shrink-0">
+                                    <i class="fa-solid fa-music"></i>
+                                </div>
+                                <div class="overflow-hidden">
+                                    <p class="font-semibold text-slate-100 group-hover:text-brand-500 transition truncate">${this.escapeHTML(track.title)}</p>
+                                    <p class="text-xs text-slate-400 truncate">${this.escapeHTML(track.artist)}</p>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="py-3 px-4 hidden md:table-cell text-xs text-slate-400 truncate max-w-[150px]">
+                            ${this.escapeHTML(track.album || 'Ismeretlen')}
+                        </td>
+                        <td class="py-3 px-4 hidden lg:table-cell text-xs text-slate-400">
+                            ${new Date(track.addedAt).toLocaleDateString('hu-HU')}
+                        </td>
+                        <td class="py-3 px-4 text-right font-mono text-xs text-slate-400">
+                            ${this.formatTime(track.duration)}
+                        </td>
+                        <td class="py-3 px-4 text-center">
+                            <div class="flex items-center justify-center gap-1 opacity-95 sm:opacity-0 group-hover:opacity-100 transition">
+                                <button class="play-row-btn p-1.5 hover:text-brand-500 text-slate-400 transition" title="Lejátszás">
+                                    <i class="fa-solid ${isCurrent && this.isPlaying ? 'fa-pause' : 'fa-play'}"></i>
+                                </button>
+                                ${canEdit ? `
+                                    <button class="edit-row-btn p-1.5 hover:text-brand-accent text-slate-400 transition" title="Szerkesztés">
+                                        <i class="fa-solid fa-pen-to-square"></i>
+                                    </button>
+                                    <button class="delete-row-btn p-1.5 hover:text-red-400 text-slate-400 transition" title="Törlés">
+                                        <i class="fa-solid fa-trash-can"></i>
+                                    </button>
+                                ` : ''}
+                            </div>
+                        </td>
+                    `;
+
+                    const playBtn = tr.querySelector('.play-row-btn');
+                    playBtn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        if (isCurrent) {
+                            this.togglePlayPause();
+                        } else {
+                            this.playTrackIndex(index);
+                        }
+                    });
+
+                    tr.addEventListener('dblclick', () => {
+                        this.playTrackIndex(index);
+                    });
+
+                    if (canEdit) {
+                        const editBtn = tr.querySelector('.edit-row-btn');
+                        if (editBtn) {
+                            editBtn.addEventListener('click', (e) => {
+                                e.stopPropagation();
+                                this.showEditModal(track);
+                            });
+                        }
+
+                        const deleteBtn = tr.querySelector('.delete-row-btn');
+                        if (deleteBtn) {
+                            deleteBtn.addEventListener('click', (e) => {
+                                e.stopPropagation();
+                                this.deleteTrack(track.id);
+                            });
+                        }
+                    }
+
+                    this.trackList.appendChild(tr);
+                });
+            }
+
+            updateGlobalStats() {
+                this.statTotalTracks.textContent = `${this.tracks.length} db`;
+                
+                const totalSecs = this.tracks.reduce((acc, t) => acc + (t.duration || 0), 0);
+                const hrs = Math.floor(totalSecs / 3600);
+                const mins = Math.floor((totalSecs % 3600) / 60);
+                const secs = Math.floor(totalSecs % 60);
+                this.statTotalDuration.textContent = hrs > 0 
+                    ? `${hrs}ó ${mins}p` 
+                    : `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+
+                const totalBytes = this.tracks.reduce((acc, t) => acc + (t.size || 0), 0);
+                const totalMB = (totalBytes / (1024 * 1024)).toFixed(1);
+                this.statTotalSize.textContent = `${totalMB} MB`;
+            }
+
+            // --- Playback Controls ---
+            async playTrackIndex(index) {
+                if (index < 0 || index >= this.filteredTracks.length) return;
+
+                this.currentTrackIndex = index;
+                const track = this.filteredTracks[index];
+
+                if (this.currentObjectURL) {
+                    URL.revokeObjectURL(this.currentObjectURL);
+                }
+
+                this.currentObjectURL = URL.createObjectURL(track.fileBlob);
+                this.audio.src = this.currentObjectURL;
+                this.audio.playbackRate = this.playbackSpeeds[this.currentSpeedIdx];
+                
+                try {
+                    await this.audio.play();
+                    this.isPlaying = true;
+                    this.updatePlayerUI(track);
+                    this.renderPlaylist();
+                } catch (err) {
+                    console.error('Audio playback failed:', err);
+                    this.showToast('Nem sikerült a lejátszás ehhez a fájlhoz.', 'error');
+                }
+            }
+
+            togglePlayPause() {
+                if (this.currentTrackIndex === -1 && this.filteredTracks.length > 0) {
+                    this.playTrackIndex(0);
+                    return;
+                }
+                if (!this.audio.src) return;
+
+                if (this.isPlaying) {
+                    this.audio.pause();
+                    this.isPlaying = false;
+                } else {
+                    this.audio.play();
+                    this.isPlaying = true;
+                }
+                this.updatePlayPauseUI();
+                this.renderPlaylist();
+            }
+
+            playNext() {
+                if (this.filteredTracks.length === 0) return;
+                
+                if (this.isShuffle) {
+                    const randomIndex = Math.floor(Math.random() * this.filteredTracks.length);
+                    this.playTrackIndex(randomIndex);
+                } else {
+                    let nextIndex = this.currentTrackIndex + 1;
+                    if (nextIndex >= this.filteredTracks.length) {
+                        nextIndex = 0;
+                    }
+                    this.playTrackIndex(nextIndex);
+                }
+            }
+
+            playPrevious() {
+                if (this.filteredTracks.length === 0) return;
+                
+                if (this.audio.currentTime > 3) {
+                    this.audio.currentTime = 0;
+                    return;
+                }
+
+                let prevIndex = this.currentTrackIndex - 1;
+                if (prevIndex < 0) {
+                    prevIndex = this.filteredTracks.length - 1;
+                }
+                this.playTrackIndex(prevIndex);
+            }
+
+            toggleShuffle() {
+                this.isShuffle = !this.isShuffle;
+                this.shuffleBtn.classList.toggle('text-brand-500', this.isShuffle);
+                this.shuffleBtn.classList.toggle('text-slate-400', !this.isShuffle);
+                this.showToast(this.isShuffle ? 'Véletlenszerű lejátszás BE' : 'Véletlenszerű lejátszás KI', 'info');
+            }
+
+            toggleLoop() {
+                this.isLoop = !this.isLoop;
+                this.loopBtn.classList.toggle('text-brand-500', this.isLoop);
+                this.loopBtn.classList.toggle('text-slate-400', !this.isLoop);
+                this.showToast(this.isLoop ? 'Ismétlés BE' : 'Ismétlés KI', 'info');
+            }
+
+            onTrackEnded() {
+                if (this.isLoop) {
+                    this.audio.currentTime = 0;
+                    this.audio.play();
+                } else {
+                    this.playNext();
+                }
+            }
+
+            onTimeUpdate() {
+                if (!this.audio.duration) return;
+                const progress = (this.audio.currentTime / this.audio.duration) * 100;
+                this.progressBar.value = progress;
+                this.currentTimeEl.textContent = this.formatTime(this.audio.currentTime);
+            }
+
+            onMetadataLoaded() {
+                this.totalDurationEl.textContent = this.formatTime(this.audio.duration);
+            }
+
+            updatePlayerUI(track) {
+                this.playerTitle.textContent = track.title;
+                this.playerArtist.textContent = track.artist;
+                this.playerBadge.textContent = (track.type || 'AUDIO').split('/')[1] || 'MP3';
+                this.updatePlayPauseUI();
+            }
+
+            updatePlayPauseUI() {
+                if (this.isPlaying) {
+                    this.playIcon.className = 'fa-solid fa-pause text-base';
+                    this.playerEqOverlay.classList.remove('hidden');
+                } else {
+                    this.playIcon.className = 'fa-solid fa-play ml-0.5 text-base';
+                    this.playerEqOverlay.classList.add('hidden');
+                }
+            }
+
+            updateVolumeUI() {
+                const vol = this.audio.muted ? 0 : this.audio.volume;
+                this.volumeSlider.value = vol;
+
+                if (vol === 0 || this.audio.muted) {
+                    this.volumeIcon.className = 'fa-solid fa-volume-xmark text-red-400';
+                } else if (vol < 0.5) {
+                    this.volumeIcon.className = 'fa-solid fa-volume-low';
+                } else {
+                    this.volumeIcon.className = 'fa-solid fa-volume-high';
+                }
+            }
+
+            // --- Track Editing & Deletion ---
+            showEditModal(track) {
+                document.getElementById('editTrackId').value = track.id;
+                document.getElementById('editTitle').value = track.title;
+                document.getElementById('editArtist').value = track.artist;
+                document.getElementById('editAlbum').value = track.album || '';
+                document.getElementById('editGenre').value = track.genre || '';
+                this.editModal.classList.remove('hidden');
+            }
+
+            hideEditModal() {
+                this.editModal.classList.add('hidden');
+            }
+
+            async saveTrackEdit(e) {
+                e.preventDefault();
+                const id = document.getElementById('editTrackId').value;
+                const track = await this.db.getTrack(id);
+
+                if (track) {
+                    track.title = document.getElementById('editTitle').value.trim();
+                    track.artist = document.getElementById('editArtist').value.trim();
+                    track.album = document.getElementById('editAlbum').value.trim();
+                    track.genre = document.getElementById('editGenre').value.trim();
+
+                    await this.db.updateTrack(track);
+                    this.hideEditModal();
+                    this.showToast('Zene adatai frissítve!', 'success');
+                    
+                    if (this.filteredTracks[this.currentTrackIndex]?.id === id) {
+                        this.playerTitle.textContent = track.title;
+                        this.playerArtist.textContent = track.artist;
+                    }
+
+                    await this.loadTracksFromDB();
+                }
+            }
+
+            async deleteTrack(id) {
+                if (!this.currentUser) return;
+                const track = this.tracks.find(t => t.id === id);
+                if (!track) return;
+
+                if (confirm(`Biztosan törölni szeretnéd a(z) "${track.title}" című számot?`)) {
+                    await this.db.deleteTrack(id);
+                    
+                    if (this.filteredTracks[this.currentTrackIndex]?.id === id) {
+                        this.audio.pause();
+                        this.audio.src = '';
+                        this.isPlaying = false;
+                        this.currentTrackIndex = -1;
+                        this.playerTitle.textContent = 'Nincs kiválasztott szám';
+                        this.playerArtist.textContent = 'Válassz egy dalt a lejátszáshoz';
+                        this.updatePlayPauseUI();
+                    }
+
+                    this.showToast('Zene sikeresen törölve', 'info');
+                    await this.loadTracksFromDB();
+                }
+            }
+
+            async confirmDeleteAll() {
+                if (!this.currentUser) {
+                    this.showAuthModal();
+                    this.showToast('Az összes zene törléséhez be kell jelentkezned Admin-ként!', 'error');
+                    return;
+                }
+                if (this.tracks.length === 0) return;
+                
+                if (confirm('Biztosan ki szeretnéd törölni az ÖSSZES elmentett zenét a felhődből?')) {
+                    await this.db.clearAllTracks();
+                    this.audio.pause();
+                    this.audio.src = '';
+                    this.isPlaying = false;
+                    this.currentTrackIndex = -1;
+                    this.playerTitle.textContent = 'Nincs kiválasztott szám';
+                    this.playerArtist.textContent = 'Válassz egy dalt a lejátszáshoz';
+                    this.updatePlayPauseUI();
+                    
+                    this.showToast('Összes zene törölve', 'info');
+                    await this.loadTracksFromDB();
+                }
+            }
+
+            // --- Utilities ---
+            formatTime(seconds) {
+                if (isNaN(seconds) || seconds === 0) return '0:00';
+                const mins = Math.floor(seconds / 60);
+                const secs = Math.floor(seconds % 60);
+                return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+            }
+
+            escapeHTML(str) {
+                if (!str) return '';
+                return str.replace(/[&<>'"]/g, 
+                    tag => ({
+                        '&': '&amp;',
+                        '<': '&lt;',
+                        '>': '&gt;',
+                        "'": '&#39;',
+                        '"': '&quot;'
+                    }[tag] || tag)
+                );
+            }
+
+            showToast(message, type = 'info') {
+                const container = document.getElementById('toastContainer');
+                const toast = document.createElement('div');
+                
+                const bgColors = {
+                    success: 'bg-brand-600 text-white',
+                    error: 'bg-red-600 text-white',
+                    info: 'bg-darkbg-800 text-slate-200 border border-slate-700'
+                };
+
+                const icons = {
+                    success: 'fa-circle-check',
+                    error: 'fa-circle-exclamation',
+                    info: 'fa-circle-info'
+                };
+
+                toast.className = `px-4 py-3 rounded-xl shadow-xl flex items-center gap-3 text-sm transition-all duration-300 transform translate-y-2 opacity-0 pointer-events-auto ${bgColors[type]}`;
+                toast.innerHTML = `
+                    <i class="fa-solid ${icons[type]}"></i>
+                    <span>${message}</span>
+                `;
+
+                container.appendChild(toast);
+
+                requestAnimationFrame(() => {
+                    toast.classList.remove('translate-y-2', 'opacity-0');
+                });
+
+                setTimeout(() => {
+                    toast.classList.add('opacity-0', 'translate-y-2');
+                    setTimeout(() => toast.remove(), 300);
+                }, 3000);
+            }
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            window.cloudApp = new App();
+            window.cloudApp.init();
+        });
+    </script>
+</body>
+</html>
