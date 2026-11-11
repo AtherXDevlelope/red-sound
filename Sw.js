@@ -1,7 +1,7 @@
 const CACHE = 'red-sound-v1';
 const CORE = [
   './',
-  './cloudharmonix_audio_cloud.html',
+  './index.html',
   'https://cdn.tailwindcss.com',
   'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css'
 ];
@@ -18,6 +18,6 @@ self.addEventListener('fetch', e => {
       const copy = res.clone();
       caches.open(CACHE).then(c => c.put(e.request, copy));
       return res;
-    }).catch(() => caches.match('./cloudharmonix_audio_cloud.html')))
+    }).catch(() => caches.match('./index.html')))
   );
 });
