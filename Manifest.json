@@ -1,0 +1,9 @@
+{
+  "name": "Red Sound",
+  "short_name": "Red Sound",
+  "start_url": "./cloudharmonix_audio_cloud.html",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "icons": []
+}
